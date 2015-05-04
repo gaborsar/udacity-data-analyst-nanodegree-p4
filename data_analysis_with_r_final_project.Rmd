@@ -1,0 +1,793 @@
+# Prosper Loans Exploration by Gabor Sar
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(colorspace)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loans <- read.csv('prosperLoanData.csv')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+rotate_x <- theme(axis.text.x = element_text(angle = 90, hjust = 1))
+legend_alpha_1 <- guides(colour = guide_legend(override.aes = list(alpha = 1)))
+```
+
+## Analysis
+
+### Data Overview
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dim(loans)
+names(loans)
+```
+
+There are 113937 loans in the dataset with 81 features.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+str(loans)
+```
+
+`ListingCategory..numeric.` contains integer numbers.
+Converting it to a factor could be very usefull.
+
+I am going to map the following numbers to the following levels:
+
+Number | Level
+------ | -----
+0 | Not Available
+1 | Debt Consolidation
+2 | Home Improvement
+3 | Business
+4 | Personal Loan
+5 | Student Use
+6 | Auto
+7 | Other
+8 | Baby&Adoption
+9 | Boat
+10 | Cosmetic Procedure
+11 | Engagement Ring
+12 | Green Loans
+13 | Household Expenses
+14 | Large Purchases
+15 | Medical/Dental
+16 | Motorcycle
+17 | RV
+18 | Taxes
+19 | Vacation
+20 | Wedding Loans
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loans$ListingCategory = factor(loans$ListingCategory..numeric., levels = 0:20)
+levels(loans$ListingCategory) <- c('Not Available',
+                                   'Debt Consolidation',
+                                   'Home Improvement',
+                                   'Business',
+                                   'Personal Loan',
+                                   'Student Use',
+                                   'Auto',
+                                   'Other',
+                                   'Baby&Adoption',
+                                   'Boat',
+                                   'Cosmetic Procedure',
+                                   'Engagement Ring',
+                                   'Green Loans',
+                                   'Household Expenses',
+                                   'Large Purchases',
+                                   'Medical/Dental',
+                                   'Motorcycle',
+                                   'RV',
+                                   'Taxes',
+                                   'Vacation',
+                                   'Wedding Loans')
+```
+
+`ListingCreationDate`, `ClosedDate` and `LoanOriginationDate` are factors.
+Converting them to dates could make plotting by date easier.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loans$ListingCreationDate <- as.Date(loans$ListingCreationDate)
+loans$ClosedDate <- as.Date(loans$ClosedDate)
+loans$LoanOriginationDate <- as.Date(loans$LoanOriginationDate)
+```
+
+### Univariate Analysis
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans)
+```
+
+Most of the loans have current or completed status.
+
+The minimum estimated return is -0.183.
+The median estimated return is 0.092, and the maximum is 0.284.
+This seems pretty balanced.
+
+Most of the loans (51%) for debt consolidation.
+
+At least 88% percent of the borrowers employed, and the median of their
+employment duration is 67 months.
+
+The median upper credit score range is 699, and the maximum is 899.
+The lower and upper credit score range values are very close to each other.
+
+The median stated monthly income is $4,667, and the maximum is $1,750,003.
+This is a big difference.
+92% of the incomes are verifiable.
+
+The amount of loans are between $1,000 and $35,000, and the median is $6,500.
+
+The median monthly loan payment is $217.7, and the maximum is $2,251.5.
+This is also a big difference.
+
+#### Loan Original Amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginalAmount), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginalAmount), data = loans) +
+  geom_histogram(binwidth = 500)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(as.factor(loans$LoanOriginalAmount), maxsum = 11)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginalAmount), data = loans) +
+  geom_histogram(binwidth = 5000)
+```
+
+Most of the loan amount values are between $1,000 and $10,000.
+There are some values that are more frequent than the others.
+Based on the list of the ten most frequent values, it seems like approximately
+every five thousandth.
+Setting the binwidth to 5000 shows a decreasing trend.
+
+#### Loan Origination Date
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate), data = loans) +
+  geom_histogram(binwidth = 7) +
+  scale_x_date()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate), data = loans) +
+  geom_histogram(binwidth = 7) +
+  scale_x_date(lim = c(as.Date('2008-08-01'), as.Date('2009-10-01')))
+```
+
+There is an increasing trend in the number of loans from 2006 to late 2008 and
+from late 2009 to 2014, and there is a gap between late 2008 and late 2009.
+Enlarging that timeframe shows that there were almost 0 loans registered in an
+approximately 10-months period.
+The most likely reason for this anomaly is the subprime mortgage crisis.
+
+#### Term
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$Term)
+```
+
+77% of the loans last 36 months (3 years), 21% last 60 months (5 years) and
+1% last 12 months (1 year).
+
+#### Monthly Loan Payment
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = MonthlyLoanPayment), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = MonthlyLoanPayment), data = loans) +
+  geom_histogram(binwidth = 10) +
+  xlim(0, quantile(loans$MonthlyLoanPayment, .99))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$MonthlyLoanPayment == 0)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(subset(loans, MonthlyLoanPayment == 0)$LoanStatus)
+```
+
+The majority of the monthly payments are between $0 and $500.
+There are some outliers.
+935 loans have a monthly payment of $0.
+All of those loans are completed, defaulted or the final payment is in
+progress.
+
+#### Stated Monthly Income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = StatedMonthlyIncome), data = loans) +
+  geom_histogram()
+```
+
+The histogram of monthly incomes shows a serious outlier issue.
+This supports my feelings about the big difference between the median ($4,667),
+and the maximum ($1,750,003).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = StatedMonthlyIncome), data = loans) +
+  geom_histogram(binwidth = 150) +
+  xlim(0, quantile(loans$StatedMonthlyIncome, .99))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$StatedMonthlyIncome == 0)
+```
+
+Limiting the values to the .99 quantile and setting the binwidth to 150 shows
+a much better, positively skewed normal distribution.
+The only thing that does not seem obvious is the high frequency (1394) of the 0
+values.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# I am going to store the subset of zero StatedMonthlyIncome loans,
+# so I can investigate it deeper
+loans_zero_monthly_income <- subset(loans, StatedMonthlyIncome == 0)
+table(loans_zero_monthly_income$ListingCategory)
+```
+
+Listing category does not explain the zero values.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans_zero_monthly_income$LoanStatus)
+```
+
+Most of these loans are completed, charged off or defaulted, but still 259 of
+them are current.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans_zero_monthly_income$IncomeVerifiable)
+```
+
+Only 64 of these loans contains a verifiable monthly income.
+
+#### Debt to Income Ratio
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = DebtToIncomeRatio), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = DebtToIncomeRatio), data = loans) +
+  xlim(0, quantile(loans$DebtToIncomeRatio, .99, na.rm = TRUE)) +
+  geom_histogram(binwidth = 0.01)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$DebtToIncomeRatio)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$DebtToIncomeRatio > 2.5)
+```
+
+Most of the debt income ratio values are between 0.14 and 0.32.
+There are some outliers.
+The maximum is 10.01, and there are 435 values greater than 2.5.
+
+#### Credit Score Range Lower
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = CreditScoreRangeLower), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$CreditScoreRangeLower)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = CreditScoreRangeLower), data = loans) +
+  geom_histogram(binwidth = 10) +
+  xlim(c(400, 900))
+```
+
+Most of the lower credit score range values are between 600 and 800.
+There are some outliers.
+
+#### Credit Score Range Upper
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = CreditScoreRangeUpper), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$CreditScoreRangeUpper)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = CreditScoreRangeUpper), data = loans) +
+  geom_histogram(binwidth = 10) +
+  xlim(c(400, 900))
+```
+
+Most of the upper credit score range values are between 600 and 800.
+There are some outliers.
+
+This data seems almost the same as the lower credit score range values.
+
+#### Borrower Rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = BorrowerRate), data = loans) +
+  geom_histogram(binwidth = 0.005)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loans %>%
+  group_by(BorrowerRate) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+Most borrower rates are between 0.1 and 0.3.
+The values at 0.32 and 0.35 are unexpectedly frequent.
+
+#### Borrower APR
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = BorrowerAPR), data = loans) +
+  geom_histogram(binwidth = 0.005)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# list the most frequent BorrowerAPR values
+loans %>%
+  group_by(BorrowerAPR) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+Most borrower APR values are between 0.1 and 0.3.
+The values at 0.32 and 0.35 are unexpectedly frequent.
+
+It seems like there is a strong relationship between borrower rate and borrower
+APR.
+
+I would like to know if there is any explanation of those unexpectedly frequent
+values.
+
+#### Employment Status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$EmploymentStatus)
+```
+
+89% of the borrowers employed or retired (`Employed`, `Full-time`, `Part-time`,
+`Retired`, `Self-employed`), <1% `Not employed`, and there is no useful
+employment information about 10% of them (`NA`, `Not available`, `Other`).
+
+#### Employment Status Duration
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = EmploymentStatusDuration), data = loans) +
+  geom_histogram(binwidth = 7)
+```
+
+Most of the employment status durations are between 0 and 200 months, and the
+distribution shows a decreasing trend.
+
+#### Estimated Return
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = EstimatedReturn), data = loans) +
+  geom_histogram()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = EstimatedReturn), data = loans) +
+  geom_histogram(binwidth = 0.005) +
+  xlim(c(0, 0.2))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$EstimatedReturn < 0)
+```
+
+Most of the estimated returns are between 0.05 and 0.15.
+There are some outliers, and 195 values are negative.
+
+#### Listing Category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$ListingCategory)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, ListingCategory_histogram}
+ggplot(aes(x = ListingCategory), data = loans) +
+  geom_histogram() +
+  rotate_x
+```
+
+Most loans have a listing category of debt consolidation.
+A lot of loans does not have a useful listing category (Not Available, Other).
+
+#### Loan Status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$LoanStatus)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanStatus), data = loans) +
+  geom_histogram() +
+  rotate_x
+```
+
+Most of the loans have a loan status of current, completed, charged off or
+defaulted.
+
+### Bivariate and Multivariate Analysis
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# the following values are not in the following table:
+# LoanOriginationDate
+# IncomeVerifiable
+# * DebtToIncomeRatio
+# * CreditScoreRangeLower
+# * CreditScoreRangeUpper
+# EmploymentStatus
+# EmploymentStatusDuration
+# * EstimatedReturn
+# ListingCategory
+# * LoanStatus
+cor(select(loans,
+           LoanOriginalAmount,
+           Term,
+           MonthlyLoanPayment,
+           StatedMonthlyIncome,
+           DebtToIncomeRatio,
+           CreditScoreRangeLower,
+           CreditScoreRangeUpper,
+           EmploymentStatusDuration,
+           EstimatedReturn,
+           BorrowerRate,
+           BorrowerAPR),
+    y = NULL,
+    use = 'pairwise.complete.obs')
+```
+
+Original amount correlates with monthly payment, term, credit score range lower
+and credit score range upper.
+
+Credit score range lower and credit score range upper are almost identical.
+Borrower rate and borrower APR also have a very strong realtionship.
+This means I can omit credit score range upper and borrower APR.
+I am going to use credit score range lower and borrower rate only.
+
+I would like to see how original amount and monthly payment depends on other
+variables, and I am also interested in the changes of different variables
+over the time.
+
+### Relationships of Loan Original Amount and Monthly Loan Payment
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+There are three strong linear relationships between original amount and monthly
+payment.
+
+This means that original amount cannot describe the variation of monthly
+payment alone, there must be something else participating in it.
+Based on the strong correlation between term and monthly payment, and knowing
+that there are three possible term values, term seems the best next variable
+to investigate.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, aes(color = factor(Term))) +
+  scale_color_discrete() +
+  legend_alpha_1
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount / Term), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+with(loans, cor.test(MonthlyLoanPayment, LoanOriginalAmount / Term))
+```
+
+Monthly loan payment almost equals to the original amount divided by
+the term of the loan.
+Therefore monthly loan payment can be described by original
+amount and term together.
+
+Let's see how credit score and borrower rate values affect original amount and
+monthly payment.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(CreditScoreRangeLower, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(CreditScoreRangeLower, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+Regardless the relatively strong correlations I cannot find any visible
+relationship between credit score range lower / borrower rate and
+original amount / monthly payment.
+
+The last plot seems overplotted, it may worth to revisit it with a lover
+alpha level.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .01)
+```
+
+With the decreased alpha level, I can see some underlying trend, but it is still
+not enough clean.
+
+Adding term to the plot may help again.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .01, aes(color = factor(Term))) +
+  scale_color_discrete()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .01) +
+  facet_wrap(~Term)
+```
+
+Faceting by term shows a some difference between the previously seen trends.
+
+As term and original amount has a relationship to monthly loan payment
+adding original amount to the previous plot may make the picture clearer.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, aes(color = LoanOriginalAmount)) +
+  scale_color_continuous(low = 'light blue', high = 'dark blue') +
+  facet_wrap(~Term)
+```
+
+Faceting by term and colouring by original amount shows a complex relationship,
+were both borrower rate, orginal amount and term participates in
+monthly payment.
+
+I am going to check if stated monthly income can add anything to the picture.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(StatedMonthlyIncome, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1) +
+  xlim(0, quantile(loans$StatedMonthlyIncome, .99))
+```
+
+It is clearly visible on this plot (as well), that there are some original
+amount values that more frequent than the others (approximately every
+five thousandth), but other than that, this plot cannot help too much.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
+  geom_boxplot(aes(fill = ListingCategory)) +
+  scale_color_discrete() +
+  rotate_x
+```
+
+There is a relationship between monthly loan payment and listing category.
+Loans for `Debt Consolidation` have the highest monthly payment, followed by
+`Not Available`, `Home Improvement`, `Business` and `Other`.
+
+#### Changes in Variables Over Time
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, Term), data = loans) +
+  geom_jitter(alpha = .05) +
+  scale_y_continuous(breaks = c(12, 36, 60))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate, color = factor(Term)), data = loans) +
+  geom_freqpoly(size = 1, binwidth = 30) +
+  scale_color_discrete() +
+  scale_x_date()
+```
+
+All the loans before the previously mentioned gap (between late 2008 and late
+2009) have a 36-months term.
+12-months loans were only occurring for a 2-years period between 2011 and 2013
+and were not popular.
+60-months loans started to occur at the same time as 12-months loans (in 2011),
+and there is an increasing trend in the number of those since then.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, EmploymentStatus), data = loans) +
+  geom_jitter(alpha = .05)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate, color = EmploymentStatus), data = loans) +
+  geom_freqpoly(size = 1, binwidth = 30) +
+  scale_color_discrete() +
+  scale_x_date()
+```
+
+There is no useful employment status information before late 2006.
+The `Employed` category almost replaced the `Full Time` category in late
+2010, this is probably due to a change in the way the data was recorded.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, EmploymentStatusDuration), data = loans) +
+  geom_jitter(alpha = .05, color = 'blue') +
+  geom_smooth(color = 'black', size = 1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, EmploymentStatusDuration), data = loans) +
+  geom_smooth(aes(color = EmploymentStatus))
+```
+
+The employment status durations have an increasing trend, but it does
+not have a strong relation with the changes int the employment status.
+
+Let's see if there is any relationship between employment status and employment
+status duration.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
+  geom_boxplot(aes(fill = EmploymentStatus)) +
+  scale_color_discrete() +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
+  geom_jitter(alpha = .05) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatusDuration), data = loans) +
+  geom_density(aes(color = EmploymentStatus), size = 1) +
+  scale_color_discrete()
+```
+
+There is a relationship between the employment status and the employment status
+duration.
+`Employed`, `Full-time`, `Retired` and `Self-employed` statuses tend to have a
+higher duration as `Not employed` or `Part-time`.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, ListingCategory), data = loans) +
+  geom_jitter(alpha = .05)
+```
+
+There is no useful listing category information before 2008.
+New listing categories were introduced in 2008 and 2012 as well.
+This indicates a change in the way the data was recorded, similarly to listing
+category.
+
+There is no visible pattern within listing categories.
+
+## Final Plots
+
+### First Plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, aes(color = factor(Term))) +
+  scale_color_discrete(name = 'Term') +
+  legend_alpha_1 +
+  ggtitle('Monthly Loan Payment by Loan Original Amount by and Term') +
+  xlab('Monthly Loan Payment') +
+  ylab('Loan Original Amount')
+```
+
+There is a very strong relationship between the term, the original amount and
+the monthly payment of a loan.
+The latter can be calculated from the formers.
+The monthly payment of a loan increases as the term decreases - short term loans
+have higher monthly payment than long term loans - and increases as
+the original amount increases.
+
+### Second Plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, aes(color = LoanOriginalAmount)) +
+  scale_color_continuous(low = 'light blue',
+                         high = 'dark blue',
+                         name = 'Loan Original Amount') +
+  facet_wrap(~Term) +
+  ggtitle(
+    'Monthly Loan Payment by Borrower Rate, Term \n and Loan Original Amount') +
+  xlab('Borrower Rate') +
+  ylab('Monthly Loan Payment')
+```
+
+Monthly loan payment is affected by the borrower rate, higher borrower rate
+leads to higher monthly payemnt.
+This relationship is not affected by either the term or the original amount of
+a loan.
+
+### Third Plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
+  geom_boxplot(aes(fill = ListingCategory)) +
+  ylim(0, 400) +
+  scale_color_discrete() +
+  guides(fill = FALSE) +
+  rotate_x +
+  ggtitle('Monthly Loan Payment by Listing Category') +
+  xlab('Listing Category') +
+  ylab('Monthly Loan Payment')
+```
+
+Monthly loan payment vary differently across listing categories.
+Some categories has more wide monthly payment range (e.g., `Debt
+Consolidation`), others has less wide payment range (e.g., `Motorcycle`).
+
+## Reflection
+
+The prosper loan dataset contains 113937 observations of 83 variables from
+2006 to 2014. At the beginning of my investigation I was trying to understand
+the meaning of different variables, find issues with how they stored and how
+can I make the best use of them. As the dataset contains a lot of variables,
+it was challenging to decide where to start. Finally, I have chosen to start
+investigation the variables that best representing a loan: original amount,
+term and monthly payment, and everything else that can have a relationship
+with them. First I started to plot each variable one by one to have an
+initial view about what the dataset contains, and how good the quality of it.
+I was very surprised when I saw that there were loans with 0 monthly payment,
+but later I realised that those loans are not current anymore. It was also
+unexpected that there were no loans in the dataset between late 2008 and late
+2009 but after some research I understood that the reason for the gap is the
+[subprime mortgage crisis][cnn_subprime_mortgage_crisis]. Later, during the
+analysis of the relationships between the different variables I realized that
+the monthly payment is the most important property of a loan, instead of the
+original amount as I thought before. I found that the term and the original
+amount of a loan the most relevant parameters to calculate the monthly
+payment. Borrower rate has an important role as well, however it was quite
+hard to visualize that relationship. I also found that there is a difference
+in the monthly payment, and the variation of the monthly payment across
+listing categories. Analyzing the changes of the variables over the time
+shown me that there were a few changes in the way how was the data collected.
+That made it hard to use some categorical variables, like employment status.
+The standardization of the mentioned categorical variables would lead to an
+investigation that could make a better use of them. Investigating the dataset
+without the loans that are for debt consolidation could give a good picture
+of the choices of the borrowers. Investigating the loans that are paid by
+debt consolidation would be useful as well.
+
+[cnn_subprime_mortgage_crisis]: http://money.cnn.com/2008/09/15/news/economy/subprime_timeline/index.htm
