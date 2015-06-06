@@ -1,10 +1,15 @@
+---
+output:
+  html_document:
+    theme: readable
+---
+
 # Prosper Loans Exploration by Gabor Sar
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(dplyr)
 library(GGally)
-library(colorspace)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -12,32 +17,51 @@ loans <- read.csv('prosperLoanData.csv')
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+# I am going to use the following ggplot theme to rotate the labels
+# of plots on the x axis, to prevent long labels covering each other
 rotate_x <- theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# I am going to use the following ggplot guide to force legends to have 100%
+# visibility on scatterplots where I use alpha less than 1 (to avoid
+# overplotting).
 legend_alpha_1 <- guides(colour = guide_legend(override.aes = list(alpha = 1)))
+# a large custrom color palette
+custom_colors <- c("#89C5DA", "#DA5724", "#74D944", "#CE50CA", "#3F4921",
+                   "#C0717C", "#CBD588", "#5F7FC7", "#673770", "#D3D93E",
+                   "#38333E", "#508578", "#D7C1B1", "#689030", "#AD6F3B",
+                   "#CD9BCD", "#D14285", "#6DDE88", "#652926", "#7FDCC0",
+                   "#C84248", "#8569D5", "#5E738F", "#D1A33D", "#8A7C64",
+                   "#599861")
 ```
 
-## Analysis
+## 1 Abstract
 
-### Data Overview
+I am going to analyse the loan data from Prosper. I would like to know what properties can describe a loan and what parameters can affect those properties. Is the amount the most important, or the monthly payment? Is the amount affected by the credit score of the borrower? The key goal of this analysis is to find answers to these questions.
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-dim(loans)
-names(loans)
-```
+## 2 Introduction
 
-There are 113937 loans in the dataset with 81 features.
+Prosper ([an American peer to peer lending marketplace](https://www.prosper.com/about)) provides a daily snapshot of their loan data. There are 113937 loans in the dataset with 81 features. As there are a lot of features, I am going to subset the data to those that I am interested in:
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-str(loans)
-```
+ 1) loan original amount
+ 2) monthly loan payment
+ 3) term
+ 4) loan origination date
+ 5) stated monthly income
+ 6) debt to income ratio
+ 7) employment status
+ 8) employment status duration
+ 9) credit scorer range lower
+ 10) credit score range upper
+ 11) borrower rate
+ 12) borrower APR
+ 13) listing category
+ 14) loan status
 
-`ListingCategory..numeric.` contains integer numbers.
-Converting it to a factor could be very usefull.
+Loan original amount, monthly payment and term are the most important features for this analysis. Those describe how much people borrow, how much they have to pay back, and how quickly. I would like to know what underlying trends those features have, and what kind of relationships they have with each other and other features (like how they changed over the time). I also would like to know whose are the borrowers and if their characteristics have any relation to the first three factors.
 
-I am going to map the following numbers to the following levels:
+Listing category contains integer numbers. In order to make plotting by it easier I am going to convert it into a factor, using the following  levels:
 
 Number | Level
------- | -----
+--- | ---
 0 | Not Available
 1 | Debt Consolidation
 2 | Home Improvement
@@ -85,106 +109,92 @@ levels(loans$ListingCategory) <- c('Not Available',
                                    'Wedding Loans')
 ```
 
-`ListingCreationDate`, `ClosedDate` and `LoanOriginationDate` are factors.
-Converting them to dates could make plotting by date easier.
+Loan origination date is a factors of strings. Converting it to dates could also make plotting easier.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-loans$ListingCreationDate <- as.Date(loans$ListingCreationDate)
-loans$ClosedDate <- as.Date(loans$ClosedDate)
 loans$LoanOriginationDate <- as.Date(loans$LoanOriginationDate)
 ```
 
-### Univariate Analysis
-
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-summary(loans)
+# subset the dataset to the interesting features
+loans <- loans %>% select(LoanOriginalAmount,
+                          MonthlyLoanPayment,
+                          Term,
+                          LoanOriginationDate,
+                          StatedMonthlyIncome,
+                          DebtToIncomeRatio,
+                          CreditScoreRangeLower,
+                          CreditScoreRangeUpper,
+                          BorrowerRate,
+                          BorrowerAPR,
+                          EmploymentStatus,
+                          EmploymentStatusDuration,
+                          ListingCategory,
+                          LoanStatus)
 ```
 
-Most of the loans have current or completed status.
+## 3 Univariate Analysis
 
-The minimum estimated return is -0.183.
-The median estimated return is 0.092, and the maximum is 0.284.
-This seems pretty balanced.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+names(loans)
+```
 
-Most of the loans (51%) for debt consolidation.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+str(loans)
+```
 
-At least 88% percent of the borrowers employed, and the median of their
-employment duration is 67 months.
+### 3.1 Loan Original Amount
 
-The median upper credit score range is 699, and the maximum is 899.
-The lower and upper credit score range values are very close to each other.
+The most important property of a loan is the original amount.
 
-The median stated monthly income is $4,667, and the maximum is $1,750,003.
-This is a big difference.
-92% of the incomes are verifiable.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$LoanOriginalAmount)
+```
 
-The amount of loans are between $1,000 and $35,000, and the median is $6,500.
-
-The median monthly loan payment is $217.7, and the maximum is $2,251.5.
-This is also a big difference.
-
-#### Loan Original Amount
+The mininmum is $1,000.00, the maximum is $35,000.00, and the median as $6.500,00.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = LoanOriginalAmount), data = loans) +
   geom_histogram()
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = LoanOriginalAmount), data = loans) +
-  geom_histogram(binwidth = 500)
-```
+Most of the loan original amount values are between $1,000.00 and $10,000.00.
+
+There are some values that are more frequent than the others. To find out which values, I am going to list the most frequent ones:
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 summary(as.factor(loans$LoanOriginalAmount), maxsum = 11)
 ```
+
+Based on the list of the ten most frequent values, it seems like approximately every five thousandth.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = LoanOriginalAmount), data = loans) +
   geom_histogram(binwidth = 5000)
 ```
 
-Most of the loan amount values are between $1,000 and $10,000.
-There are some values that are more frequent than the others.
-Based on the list of the ten most frequent values, it seems like approximately
-every five thousandth.
 Setting the binwidth to 5000 shows a decreasing trend.
 
-#### Loan Origination Date
+### 3.2 Monthly Loan Payment
+
+The second most important property of a loan is the monthly payment.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = LoanOriginationDate), data = loans) +
-  geom_histogram(binwidth = 7) +
-  scale_x_date()
+summary(loans$MonthlyLoanPayment)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = LoanOriginationDate), data = loans) +
-  geom_histogram(binwidth = 7) +
-  scale_x_date(lim = c(as.Date('2008-08-01'), as.Date('2009-10-01')))
-```
-
-There is an increasing trend in the number of loans from 2006 to late 2008 and
-from late 2009 to 2014, and there is a gap between late 2008 and late 2009.
-Enlarging that timeframe shows that there were almost 0 loans registered in an
-approximately 10-months period.
-The most likely reason for this anomaly is the subprime mortgage crisis.
-
-#### Term
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$Term)
-```
-
-77% of the loans last 36 months (3 years), 21% last 60 months (5 years) and
-1% last 12 months (1 year).
-
-#### Monthly Loan Payment
+This minimum is $0.00, the maximum is $2,252.00, and the median is $217,7.00.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = MonthlyLoanPayment), data = loans) +
   geom_histogram()
 ```
+
+The majority of the monthly payments are between $0.00 and $500.00.
+
+There are some outliers.
+
+I am going to limit the monthly payment to the .99 percentile and set the binwidth to 10.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = MonthlyLoanPayment), data = loans) +
@@ -192,30 +202,85 @@ ggplot(aes(x = MonthlyLoanPayment), data = loans) +
   xlim(0, quantile(loans$MonthlyLoanPayment, .99))
 ```
 
+Based on this plot a lot of loans have a monthly payment of $0.00.
+
+Count 0 values:
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 table(loans$MonthlyLoanPayment == 0)
 ```
+
+935 loans have a monthly payment of $0.00. Let's see what is the status of those loans.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 table(subset(loans, MonthlyLoanPayment == 0)$LoanStatus)
 ```
 
-The majority of the monthly payments are between $0 and $500.
-There are some outliers.
-935 loans have a monthly payment of $0.
-All of those loans are completed, defaulted or the final payment is in
-progress.
+All of those loans are completed, defaulted or the final payment is in progress.
 
-#### Stated Monthly Income
+### 3.3 Term
+
+Term is also a critical variable, as that is the most likely to have a strong relationship with the amount or the monthly payment.
+
+Number of loans per term:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(loans$Term)
+```
+
+Proportion of loans per term:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+round(table(loans$Term) / nrow(loans), 2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# make a pie chart
+# http://docs.ggplot2.org/current/coord_polar.html
+ggplot(aes(x = factor(1), fill = factor(Term)), data = loans) +
+  geom_bar(width = 1) +
+  coord_polar(theta = 'y') +
+  scale_fill_grey()
+```
+
+77% of the loans last 36 months (3 years), 21% last 60 months (5 years) and 1% last 12 months (1 year).
+
+### 3.4 Loan Origination Date
+
+I am interested in the changes of the different variables over the time. First, let's see how the number of loans changed.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate), data = loans) +
+  geom_histogram(binwidth = 7) +
+  scale_x_date()
+```
+
+There is an increasing trend in the number of loans from 2006 to late 2008 and from late 2009 to 2014, and there is a gap between late 2008 and late 2009.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate), data = loans) +
+  geom_histogram(binwidth = 7) +
+  scale_x_date(lim = c(as.Date('2008-08-01'), as.Date('2009-10-01')))
+```
+
+Enlarging that timeframe shows that there were almost 0 loans registered in an approximately 10-months period. The most likely reason for this anomaly is the subprime mortgage crisis.
+
+### 3.5 Stated Monthly Income
+
+I would like to know how much is the monthly income of a borrower.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$StatedMonthlyIncome)
+```
+
+The minimum is $0.00, the maximum is $1,750,000.00, and the median is $4,667.00. The difference between the median and the maximum is significant.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = StatedMonthlyIncome), data = loans) +
   geom_histogram()
 ```
 
-The histogram of monthly incomes shows a serious outlier issue.
-This supports my feelings about the big difference between the median ($4,667),
-and the maximum ($1,750,003).
+The histogram of monthly incomes shows a serious outlier issue. This supports my feelings about the big difference between the median ($4,667.00), and the maximum ($1,750,003.00).
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = StatedMonthlyIncome), data = loans) +
@@ -223,14 +288,17 @@ ggplot(aes(x = StatedMonthlyIncome), data = loans) +
   xlim(0, quantile(loans$StatedMonthlyIncome, .99))
 ```
 
+Limiting the values to the .99 quantile and setting the binwidth to 150 shows a much better, positively skewed, normal distribution.
+
+The only thing that does not seem obvious is the high frequency of the 0 values.
+
+Number of 0 values:
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 table(loans$StatedMonthlyIncome == 0)
 ```
 
-Limiting the values to the .99 quantile and setting the binwidth to 150 shows
-a much better, positively skewed normal distribution.
-The only thing that does not seem obvious is the high frequency (1394) of the 0
-values.
+There are 1394 loans in the dataset with 0 stated monthly income.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 # I am going to store the subset of zero StatedMonthlyIncome loans,
@@ -245,21 +313,19 @@ Listing category does not explain the zero values.
 table(loans_zero_monthly_income$LoanStatus)
 ```
 
-Most of these loans are completed, charged off or defaulted, but still 259 of
-them are current.
+Most of these loans are completed, charged off or defaulted, but still 259 of them are current.
+
+### 3.6 Debt to Income Ratio
+
+Let's have a look at the how much a borrower have to spend on paying debts back.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans_zero_monthly_income$IncomeVerifiable)
+summary(loans$DebtToIncomeRatio)
 ```
 
-Only 64 of these loans contains a verifiable monthly income.
+The minimum is 0.000, the maximum is 10.010, and the median is 0.220.
 
-#### Debt to Income Ratio
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = DebtToIncomeRatio), data = loans) +
-  geom_histogram()
-```
+There are some outliers.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = DebtToIncomeRatio), data = loans) +
@@ -267,66 +333,114 @@ ggplot(aes(x = DebtToIncomeRatio), data = loans) +
   geom_histogram(binwidth = 0.01)
 ```
 
+Most of the debt to income ratio values are between 0.14 and 0.32.
+
+The histogram shows a positively skewed, normal distribution.
+
+### 3.7 Employment Status
+
+I would like to know if there is any trend in them employment status of the borrowers, and later if it has any relationship to the original amount or monthly payment of the loans.
+
+Number of loans per employment status:
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-summary(loans$DebtToIncomeRatio)
+table(loans$EmploymentStatus)
+```
+
+Proportion of loans per employment status:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+round(table(loans$EmploymentStatus) / nrow(loans), 2)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$DebtToIncomeRatio > 2.5)
+ggplot(aes(x = factor(1), fill = factor(EmploymentStatus)), data = loans) +
+  geom_bar(width = 1) +
+  coord_polar(theta = 'y') +
+  scale_fill_brewer(type = 'div')
 ```
 
-Most of the debt income ratio values are between 0.14 and 0.32.
-There are some outliers.
-The maximum is 10.01, and there are 435 values greater than 2.5.
+89% of the borrowers employed or retired (`Employed`, `Full-time`, `Part-time`, `Retired`, `Self-employed`), <1% `Not employed`, and there is no useful employment information about 10% of them (`NA`, `Not available`, `Other`).
 
-#### Credit Score Range Lower
+### 3.8 Employment Status Duration
+
+Let's see the length of the employment statuses.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$EmploymentStatusDuration)
+```
+
+The miminum is 0.00, the maximum is 755.00, and the median is 67.00.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = EmploymentStatusDuration), data = loans) +
+  geom_histogram(binwidth = 7)
+```
+
+Most of the employment status durations are between 0 and 200 months, and the distribution shows a decreasing trend.
+
+### 3.9 Credit Score
+
+Credit score represents the creditworthiness of a borrower, and it is used by banks and other lenders to evaluate the risk of a loan. Therefore, I would like to see how it correlates with the properties of peer-to-peer loans.
+
+The dataset contains both credit score range lower and credit score range upper variables. I am going to check if there is any difference between the two, or I can omit one of them in my analysis.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# calculate the difference of credit score range upper and
+# credit score range lower
+credit_score_range_difference = loans$CreditScoreRangeUpper -
+  loans$CreditScoreRangeLower
+```
+
+Summary of (credit score range upper - credit score range lower) values:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(credit_score_range_difference)
+```
+
+Number of (credit score range upper - credit score range lower) values:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(credit_score_range_difference)
+```
+
+The difference of credit score range upper and credit score range lower is always 19. Therefore, I can omit one of those values. I am going to use credit score range lower in my analysis.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$CreditScoreRangeLower)
+```
+
+The mimimum is 0.0, the maximum is 880.0, and the median is 680.0.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = CreditScoreRangeLower), data = loans) +
-  geom_histogram()
+  geom_histogram(binwidth = 10)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$CreditScoreRangeLower)
-```
+Most of the credit score range lower values are between 600 and 800.
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = CreditScoreRangeLower), data = loans) +
-  geom_histogram(binwidth = 10) +
-  xlim(c(400, 900))
-```
+All values are multiples of 10.
 
-Most of the lower credit score range values are between 600 and 800.
+The distribution seems almost normal.
+
 There are some outliers.
 
-#### Credit Score Range Upper
+### 3.10 Borrower Rate
+
+Borrower rate is the borrower's interest rate for a loan.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = CreditScoreRangeUpper), data = loans) +
-  geom_histogram()
+summary(loans$BorrowerRate)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$CreditScoreRangeUpper)
-```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = CreditScoreRangeUpper), data = loans) +
-  geom_histogram(binwidth = 10) +
-  xlim(c(400, 900))
-```
-
-Most of the upper credit score range values are between 600 and 800.
-There are some outliers.
-
-This data seems almost the same as the lower credit score range values.
-
-#### Borrower Rate
+The miminum is 0.0000, the maximum is 0.4975, and the median is 0.1840.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = BorrowerRate), data = loans) +
-  geom_histogram(binwidth = 0.005)
+  geom_histogram(binwidth = 0.01)
 ```
+
+Most frequent values:
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 loans %>%
@@ -335,15 +449,28 @@ loans %>%
   arrange(desc(count))
 ```
 
-Most borrower rates are between 0.1 and 0.3.
+Most borrower rate values are between 0.1 and 0.3.
+
 The values at 0.32 and 0.35 are unexpectedly frequent.
 
-#### Borrower APR
+There are some outliers.
+
+### 3.11 Borrower APR
+
+Borrower APR is the borrower's annual rate for a loan. It is the total cost of a loan and it includes borrower rate as well.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(loans$BorrowerAPR)
+```
+
+The miminum is 0.00653, the maximum is 0.51230, and the median is 0.20980.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = BorrowerAPR), data = loans) +
-  geom_histogram(binwidth = 0.005)
+  geom_histogram(binwidth = 0.01)
 ```
+
+Most frequent values:
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 # list the most frequent BorrowerAPR values
@@ -354,55 +481,16 @@ loans %>%
 ```
 
 Most borrower APR values are between 0.1 and 0.3.
+
 The values at 0.32 and 0.35 are unexpectedly frequent.
 
-It seems like there is a strong relationship between borrower rate and borrower
-APR.
+There are some outliers.
 
-I would like to know if there is any explanation of those unexpectedly frequent
-values.
+Based on the distributions, there is a clear relationship between borrower rate and borrower APR. As borrower APR includes borrower rate, this is not a surprise.
 
-#### Employment Status
+### 3.12 Listing Category
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$EmploymentStatus)
-```
-
-89% of the borrowers employed or retired (`Employed`, `Full-time`, `Part-time`,
-`Retired`, `Self-employed`), <1% `Not employed`, and there is no useful
-employment information about 10% of them (`NA`, `Not available`, `Other`).
-
-#### Employment Status Duration
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = EmploymentStatusDuration), data = loans) +
-  geom_histogram(binwidth = 7)
-```
-
-Most of the employment status durations are between 0 and 200 months, and the
-distribution shows a decreasing trend.
-
-#### Estimated Return
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = EstimatedReturn), data = loans) +
-  geom_histogram()
-```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = EstimatedReturn), data = loans) +
-  geom_histogram(binwidth = 0.005) +
-  xlim(c(0, 0.2))
-```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-table(loans$EstimatedReturn < 0)
-```
-
-Most of the estimated returns are between 0.05 and 0.15.
-There are some outliers, and 195 values are negative.
-
-#### Listing Category
+I would like to see what the borrowers used their loans for.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 table(loans$ListingCategory)
@@ -411,13 +499,19 @@ table(loans$ListingCategory)
 ```{r echo=FALSE, message=FALSE, warning=FALSE, ListingCategory_histogram}
 ggplot(aes(x = ListingCategory), data = loans) +
   geom_histogram() +
+  scale_y_sqrt() +
   rotate_x
 ```
 
-Most loans have a listing category of debt consolidation.
-A lot of loans does not have a useful listing category (Not Available, Other).
+I have used square-root transformation to make the histogram more readable.
 
-#### Loan Status
+Most loans have a listing category of debt consolidation.
+
+A lot of loans does not have a useful listing category (`Not Available`, `Other`).
+
+### 3.13 Loan Status
+
+What is the current status of the loans in the dataset?
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 table(loans$LoanStatus)
@@ -426,193 +520,216 @@ table(loans$LoanStatus)
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(x = LoanStatus), data = loans) +
   geom_histogram() +
+  scale_y_sqrt() +
   rotate_x
 ```
 
-Most of the loans have a loan status of current, completed, charged off or
-defaulted.
+I have used square-root transformation to make the histogram more readable.
 
-### Bivariate and Multivariate Analysis
+Most of the loans have a loan status of current, completed, charged off or defaulted. All the other statuses have a very low occurrence in the dataset.
+
+## 4 Bivariate Analysis
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 # the following values are not in the following table:
-# LoanOriginationDate
-# IncomeVerifiable
-# * DebtToIncomeRatio
-# * CreditScoreRangeLower
-# * CreditScoreRangeUpper
-# EmploymentStatus
-# EmploymentStatusDuration
-# * EstimatedReturn
-# ListingCategory
+# * LoanOriginationDate
+# * EmploymentStatus
+# * ListingCategory
 # * LoanStatus
 cor(select(loans,
            LoanOriginalAmount,
-           Term,
            MonthlyLoanPayment,
+           Term,
            StatedMonthlyIncome,
            DebtToIncomeRatio,
+           EmploymentStatusDuration,
            CreditScoreRangeLower,
            CreditScoreRangeUpper,
-           EmploymentStatusDuration,
-           EstimatedReturn,
            BorrowerRate,
            BorrowerAPR),
     y = NULL,
     use = 'pairwise.complete.obs')
 ```
 
-Original amount correlates with monthly payment, term, credit score range lower
-and credit score range upper.
+Original amount have a strong correlation with monthly payment (0.93198368), and a weak correlation with term (0.33892746), credit score (0.34087445), borrower rate (-0.32895995) and borrower APR (-0.32288669).
 
-Credit score range lower and credit score range upper are almost identical.
-Borrower rate and borrower APR also have a very strong realtionship.
-This means I can omit credit score range upper and borrower APR.
-I am going to use credit score range lower and borrower rate only.
+Monthly payment have a weak correlation with credit score (0.29253205), borrower rate (-0.24474235) and borrower APR (-0.22665287).
 
-I would like to see how original amount and monthly payment depends on other
-variables, and I am also interested in the changes of different variables
-over the time.
+Creddt score have a weak correlation with borrower rate (-0.46156668) and borrower APR (-0.42970732).
 
-### Relationships of Loan Original Amount and Monthly Loan Payment
+There is a very strong correlation between borrower rate and borrower APR (0.989823970). As previously mentioned, borrower APR includes borrower rate, so this correlation is expected.
+
+In this section I am going to analyse the relationships above, the changes in the different features over the time and the relationships between the original amount, monthly payment and listing category and employment status. I also would like to see how employment status duration differs between employment status values, to get a better picture about the borrowers.
+
+### 4.1 Loan Original Amount and Monthly Payment
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$MonthlyLoanPayment, loans$LoanOriginalAmount)
+```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
   geom_jitter(alpha = .1)
 ```
 
-There are three strong linear relationships between original amount and monthly
-payment.
+Original amount and monthly payment have a very strong (0.9319837) positive correlation. Based on the scatterplot there are three strong linear relationships between them. That means that monthly payment cannot describe the variation of original amount alone, there must be something else participating in it. Later in my analysis I am going to try to find that other participant.
 
-This means that original amount cannot describe the variation of monthly
-payment alone, there must be something else participating in it.
-Based on the strong correlation between term and monthly payment, and knowing
-that there are three possible term values, term seems the best next variable
-to investigate.
+### 4.2 Loan Original Amount and Term
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
-  geom_jitter(alpha = .1, aes(color = factor(Term))) +
-  scale_color_discrete() +
-  legend_alpha_1
+cor.test(loans$Term, loans$LoanOriginalAmount)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount / Term), data = loans) +
-  geom_jitter(alpha = .1)
+ggplot(aes(x = LoanOriginalAmount, color = factor(Term)), data = loans) +
+  geom_density(size = 1) +
+  scale_color_discrete()
 ```
+
+There is a weak correlation between original amount and term (0.3389275). The only visible difference is that the values under £10,000.00 are less frequent if the term is 60 months. That means that longer loans do not necessary have a higher original amount, as I was expecting it.
+
+### 4.3 Loan Original Amount and Credit Score
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-with(loans, cor.test(MonthlyLoanPayment, LoanOriginalAmount / Term))
+cor.test(loans$CreditScoreRangeLower, loans$LoanOriginalAmount)
 ```
-
-Monthly loan payment almost equals to the original amount divided by
-the term of the loan.
-Therefore monthly loan payment can be described by original
-amount and term together.
-
-Let's see how credit score and borrower rate values affect original amount and
-monthly payment.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(CreditScoreRangeLower, LoanOriginalAmount), data = loans) +
-  geom_jitter(alpha = .1)
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a weak correlation between original amount and credit score (0.3408745). The scatterplot does not provide any extra information.
+
+### 4.4 Loan Original Amount and Borrower Rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$BorrowerRate, loans$LoanOriginalAmount)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(BorrowerRate, LoanOriginalAmount), data = loans) +
-  geom_jitter(alpha = .1)
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a weak correlation between original amount and borrower rate (-0.3289599). The scatterplot does not provide any extra information.
+
+### 4.5 Loan Original Amount and Borrower APR
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$BorrowerAPR, loans$LoanOriginalAmount)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerAPR, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a weak correlation between original amount and borrower APR (-0.3228867). The scatterplot does not provide any extra information.
+
+### 4.6 Monthly Payment and Credit Score
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$CreditScoreRangeLower, loans$MonthlyLoanPayment)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(CreditScoreRangeLower, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .1)
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a weak correlation between monthly payment and credit score (0.292532). The scatterplot does not provide any extra information.
+
+### 4.9 Monthly Payment and Borrower Rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$BorrowerRate, loans$MonthlyLoanPayment)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .1)
+  geom_jitter(alpha = .05, size = 1)
 ```
 
-Regardless the relatively strong correlations I cannot find any visible
-relationship between credit score range lower / borrower rate and
-original amount / monthly payment.
+There is a weak correlation between monthly payment and borrower rate (-0.2447424). The scatterplot shows multiple underlying relationships between them. Later in my analysis, I would like to look into this deeper.
 
-The last plot seems overplotted, it may worth to revisit it with a lover
-alpha level.
+### 4.8 Monthly Payment and Borrower APR
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .01)
-```
-
-With the decreased alpha level, I can see some underlying trend, but it is still
-not enough clean.
-
-Adding term to the plot may help again.
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .01, aes(color = factor(Term))) +
-  scale_color_discrete()
+cor.test(loans$BorrowerAPR, loans$MonthlyLoanPayment)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .01) +
-  facet_wrap(~Term)
+ggplot(aes(BorrowerAPR, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, size = 1)
 ```
 
-Faceting by term shows a some difference between the previously seen trends.
+There is a weak correlation between monthly payment and borrower APR (-0.2266529). The scatterplot shows very similar relationships to the previous (monthly payment and borrower rate), with a little bit more noise.
 
-As term and original amount has a relationship to monthly loan payment
-adding original amount to the previous plot may make the picture clearer.
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .05, aes(color = LoanOriginalAmount)) +
-  scale_color_continuous(low = 'light blue', high = 'dark blue') +
-  facet_wrap(~Term)
-```
-
-Faceting by term and colouring by original amount shows a complex relationship,
-were both borrower rate, orginal amount and term participates in
-monthly payment.
-
-I am going to check if stated monthly income can add anything to the picture.
+### 4.9 Credit Score and Borrower Rate
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(StatedMonthlyIncome, LoanOriginalAmount), data = loans) +
-  geom_jitter(alpha = .1) +
-  xlim(0, quantile(loans$StatedMonthlyIncome, .99))
-```
-
-It is clearly visible on this plot (as well), that there are some original
-amount values that more frequent than the others (approximately every
-five thousandth), but other than that, this plot cannot help too much.
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .1) +
-  rotate_x
+cor.test(loans$BorrowerRate, loans$CreditScoreRangeLower)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
-  geom_boxplot(aes(fill = ListingCategory)) +
-  scale_color_discrete() +
-  rotate_x
+ggplot(aes(BorrowerRate, CreditScoreRangeLower), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
 ```
 
-There is a relationship between monthly loan payment and listing category.
-Loans for `Debt Consolidation` have the highest monthly payment, followed by
-`Not Available`, `Home Improvement`, `Business` and `Other`.
+There is a weak correlation between credit score and borrower rate (-0.4615667). The scatterplot does not provide any extra information.
 
-#### Changes in Variables Over Time
+### 4.10 Credit Score and Borrower APR
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$BorrowerAPR, loans$CreditScoreRangeLower)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerAPR, CreditScoreRangeLower), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a weak correlation between credit score and borrower APR (-0.4297073). The scatterplot does not provide any extra information.
+
+### 4.11 Borrower Rate and Borrower APR
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(loans$BorrowerRate, loans$BorrowerAPR)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There is a very strong correlation between borrower rate and borrower APR (0.989824), and the scatterplot supports that. As previously described this is due to the fact, that borrower APR includes borrower rate. The scatterplot shows multiple relationships. I would like to know what makes them different.
+
+### 4.12 Loan Original Amount and Loan Origination Date
+
+Now let's see how different variables changed over the time.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There was no significant change in the original amount before the gap at late 2008, and then before 2011. In 2011, the smaller loans disappeared and in 2013 the popularity of larger loans increased.
+
+### 4.13 Monthly Loan Payment and Loan Origination Date
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+The pattern of changes in monthly payment over the time is very similar to the pattern of changes in original amount, but with much more noise.
+
+### 4.14 Term and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(LoanOriginationDate, Term), data = loans) +
-  geom_jitter(alpha = .05) +
+  geom_jitter(alpha = .1, size = 1) +
   scale_y_continuous(breaks = c(12, 36, 60))
 ```
 
@@ -620,88 +737,308 @@ ggplot(aes(LoanOriginationDate, Term), data = loans) +
 ggplot(aes(x = LoanOriginationDate, color = factor(Term)), data = loans) +
   geom_freqpoly(size = 1, binwidth = 30) +
   scale_color_discrete() +
-  scale_x_date()
+  scale_x_date() +
+  scale_y_sqrt()
 ```
 
-All the loans before the previously mentioned gap (between late 2008 and late
-2009) have a 36-months term.
-12-months loans were only occurring for a 2-years period between 2011 and 2013
-and were not popular.
-60-months loans started to occur at the same time as 12-months loans (in 2011),
-and there is an increasing trend in the number of those since then.
+I have used square-root transformation to make the frequency polygon more readable.
+
+There is a strong relationship between origination date and term. All the loans before the previously mentioned gap (between late 2008 and late 2009) have a 36-months term. 12-months loans were only occurring for a 2-years period between 2011 and 2013 and were not popular. 60-months loans started to occur at the same time as 12-months loans (in 2011), and there is an increasing trend in the number of those since then.
+
+### 4.15 Stated Monthly Income and Loan Origination Date
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, StatedMonthlyIncome), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  ylim(0, quantile(loans$StatedMonthlyIncome, .99))
+```
+
+There was no significant change in stated monthly income over the time.
+
+### 4.16 Debt to Income Ratio and Loan Origination Date
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, DebtToIncomeRatio), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  ylim(0, quantile(loans$DebtToIncomeRatio, .99, na.rm = TRUE))
+```
+
+There was no significant change in debt to income ratio over the time.
+
+### 4.17 Employment Status and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(LoanOriginationDate, EmploymentStatus), data = loans) +
-  geom_jitter(alpha = .05)
+  geom_jitter(alpha = .1, size = 1)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(x = LoanOriginationDate, color = EmploymentStatus), data = loans) +
-  geom_freqpoly(size = 1, binwidth = 30) +
-  scale_color_discrete() +
-  scale_x_date()
-```
+There is no useful employment status information before late 2006. The `Employed` category almost replaced the `Full Time` category in late 2010, this is probably due to a change in the way the data was recorded.
 
-There is no useful employment status information before late 2006.
-The `Employed` category almost replaced the `Full Time` category in late
-2010, this is probably due to a change in the way the data was recorded.
+### 4.18 Employment Status Duration and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(LoanOriginationDate, EmploymentStatusDuration), data = loans) +
-  geom_jitter(alpha = .05, color = 'blue') +
+  geom_jitter(alpha = .1, size = 1, color = 'blue') +
   geom_smooth(color = 'black', size = 1)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(LoanOriginationDate, EmploymentStatusDuration), data = loans) +
-  geom_smooth(aes(color = EmploymentStatus))
-```
+The black line represents the smoothed conditional mean of employment status duration over the time.
 
-The employment status durations have an increasing trend, but it does
-not have a strong relation with the changes int the employment status.
+The employment status durations have an increasing trend over the time.
 
-Let's see if there is any relationship between employment status and employment
-status duration.
+### 4.19 Credit Score and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
-  geom_boxplot(aes(fill = EmploymentStatus)) +
-  scale_color_discrete() +
-  rotate_x
+ggplot(aes(LoanOriginationDate, CreditScoreRangeLower), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  ylim(400, 900)
 ```
+
+In 2006, all credit score values became greater than 500, and in late 2013, greater than 630. There was no significant change in the frequency of the values greater than 800.
+
+### 4.20 Borrower Rate and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
-  geom_jitter(alpha = .05) +
-  rotate_x
+ggplot(aes(LoanOriginationDate, BorrowerRate), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
 ```
+
+There was a significant drop in the maximum borrower rate at the beginning of 2006 (from .36 to .24). The drop was followed by an increase at early 2006 (from 0.24 to 0.29) and at late 2007 (from .19 to .36). There were no too many changes between late 2009 and 2011 when the maximum decreased again (to .32) and the data become much noisier. Between 2012 and 2013 the data became less noisy again, and in the second half of 2013 the values between .1 and .2 became significantly more frequent.
+
+### 4.21 Borrower APR and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(aes(EmploymentStatusDuration), data = loans) +
-  geom_density(aes(color = EmploymentStatus), size = 1) +
-  scale_color_discrete()
+ggplot(aes(LoanOriginationDate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
 ```
 
-There is a relationship between the employment status and the employment status
-duration.
-`Employed`, `Full-time`, `Retired` and `Self-employed` statuses tend to have a
-higher duration as `Not employed` or `Part-time`.
+Once again, the scatterplot of borrower APR and origination date seems almost the same as the scatterplot of borrower rate and origination date, but whit more noise.
+
+### 4.22 Listing Category and Loan Origination Date
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(LoanOriginationDate, ListingCategory), data = loans) +
-  geom_jitter(alpha = .05)
+  geom_jitter(alpha = .1, size = 1)
 ```
 
-There is no useful listing category information before 2008.
-New listing categories were introduced in 2008 and 2012 as well.
-This indicates a change in the way the data was recorded, similarly to listing
-category.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate, color = factor(ListingCategory)), data = loans) +
+  geom_freqpoly(size = 1, binwidth = 30) +
+  scale_color_discrete() +
+  scale_x_date() +
+  scale_y_sqrt() +
+  guides(color = guide_legend(nrow = 6)) +
+  theme(legend.position = 'bottom')
+```
+
+I have used square-root transformation to make the frequency polygon more readable.
+
+There is no useful listing category information before 2008. New listing categories were introduced in 2008 and 2012 as well, this indicates a change in the way the data was recorded, similarly to employment status.
 
 There is no visible pattern within listing categories.
 
-## Final Plots
+### 4.23 Loan Status and Loan Origination Date
 
-### First Plot
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginationDate, LoanStatus), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = LoanOriginationDate, color = factor(LoanStatus)), data = loans) +
+  geom_freqpoly(size = 1, binwidth = 30) +
+  scale_color_discrete() +
+  scale_x_date() +
+  scale_y_sqrt()
+```
+
+I have used square-root transformation to make the frequency polygon more readable.
+
+Almost all the loans that are current were originated after 2011. Most of the completed loans were originated before late 2008, or after late 2009 and before 2013. The majority of the chargedoff loans were originated before the previously mentioned gap.
+
+### 4.24 Loan Original Amount and Listing Category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, LoanOriginalAmount), data = loans) +
+  geom_boxplot() +
+  rotate_x
+```
+
+`Debt Consolidation`, `Baby&Adoption` and `Business` have the highest, `Motorcycle`, `Vacation` and `Household Expenses` have the lowest original amount.
+
+### 4.25 Monthly Loan Payment and Listing Category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
+  geom_boxplot() +
+  rotate_x
+```
+
+Loans for `DebtConsolidation` have the highest monthly payment, followed by `NotAvailable`, `HomeImprovement`, `Business` and `Other`.
+
+### 4.26 Loan Original Amount and Employment Status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, LoanOriginalAmount), data = loans) +
+  geom_boxplot() +
+  rotate_x
+```
+
+Employed borrowers have loans with the highest, part-time employed borrowers have with the lowest original amount.
+
+### 4.27 Monthly Loan Payment and Employment Status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, size = 1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, MonthlyLoanPayment), data = loans) +
+  geom_boxplot() +
+  rotate_x
+```
+
+Employed borrowers have loans with the highest, part-time employed borrowers have with the lowest monthly payment.
+
+### 4.28 Employment Status Duration and Employment Status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
+  geom_jitter(alpha = .05, size = 1) +
+  rotate_x
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus, EmploymentStatusDuration), data = loans) +
+  geom_boxplot() +
+  rotate_x
+```
+
+There is a relationship between the employment status and the employment status duration. `Employed`, `Full-time`, `Retired` and `Self-employed` statuses tend to have a higher duration as `Not employed` or `Part-time`.
+
+## 5 Multivariate Analysis
+
+In this section I am going to try to answer the questions I raised in the previous section.
+
+### 5.1 Loan Original Amount and Monthly Payment
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1)
+```
+
+There are three linear relationships between original amount and monthly payment. Based on the relatively strong correlation between term and monthly payment, and knowing that there are three possible term values, term seems the best next variable to investigate.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
+  geom_jitter(alpha = .1, aes(color = factor(Term))) +
+  scale_color_discrete()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount / Term), data = loans) +
+  geom_jitter(alpha = .1) +
+  scale_color_discrete()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+with(loans, cor.test(MonthlyLoanPayment, LoanOriginalAmount / Term))
+```
+
+Monthly loan payment almost equals to the original amount divided by the term of the loan. Therefore monthly loan payment can be described by original amount and term together.
+
+### 5.2 Monthly Payment and Borrower Rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, size = 1)
+```
+
+There are multiple linear relationships between monthly payment and borrower rate.
+
+Adding term to the plot may help again.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, size = 1) +
+  facet_wrap(~Term)
+```
+
+Faceting by term shows some difference between the previously seen relationships.
+
+As term and original amount has a relationship to monthly loan payment adding original amount to the previous plot may make the picture clearer.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
+  geom_jitter(alpha = .05, size = 1, aes(color = LoanOriginalAmount)) +
+  scale_color_continuous(low = 'light blue', high = 'dark blue') +
+  facet_wrap(~Term)
+```
+
+Faceting by term and colouring by original amount shows a complex relationship, were both borrower rate, orginal amount and term participates in monthly payment.
+
+### 5.3 Borrower Rate and Borrower APR
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1)
+```
+
+There are multiple linear relationships between borrower rate and borrower APR.
+
+Let's try facetting by term again.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1) +
+  facet_wrap(~Term, ncol = 2)
+```
+
+Faceting by term cleans the picture a little bit, but there are still mulitple relationships within the cells.
+
+As credit score has the strongest correlation with borrower APR (-0.429707322) it may can describe some of the variation.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1, aes(color = CreditScoreRangeLower)) +
+  scale_color_continuous(low = 'light blue', high = 'dark blue') +
+  facet_wrap(~Term, ncol = 2)
+```
+
+Coloring by credit score does not explain anything, let's try original amount, as it has the  second strongest correlation with borrower APR (-0.322886690).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(BorrowerRate, BorrowerAPR), data = loans) +
+  geom_jitter(alpha = .1, size = 1, aes(color = LoanOriginalAmount)) +
+  scale_color_continuous(low = 'light blue', high = 'dark blue') +
+  facet_wrap(~Term, ncol = 2)
+```
+
+Original amount cannot help either.
+
+### 6 Final Plots
+
+### 6.1 First Plot
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
@@ -713,18 +1050,15 @@ ggplot(aes(MonthlyLoanPayment, LoanOriginalAmount), data = loans) +
   ylab('Loan Original Amount')
 ```
 
-There is a very strong relationship between the term, the original amount and
-the monthly payment of a loan.
-The latter can be calculated from the formers.
-The monthly payment of a loan increases as the term decreases - short term loans
-have higher monthly payment than long term loans - and increases as
-the original amount increases.
+I have chosen this chart because it shows how the three most important features correlate, and how two of them can describe the third one.
 
-### Second Plot
+There is a very strong positive relationship between the term, the original amount and the monthly payment of a loan. The latter can be calculated from the formers. The monthly payment of a loan increases as the term decreases - short term loans have higher monthly payment than long term loans - and increases as the original amount increases.
+
+### 6.2 Second Plot
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
-  geom_jitter(alpha = .05, aes(color = LoanOriginalAmount)) +
+  geom_jitter(alpha = .05, size = 1, aes(color = LoanOriginalAmount)) +
   scale_color_continuous(low = 'light blue',
                          high = 'dark blue',
                          name = 'Loan Original Amount') +
@@ -735,18 +1069,17 @@ ggplot(aes(BorrowerRate, MonthlyLoanPayment), data = loans) +
   ylab('Monthly Loan Payment')
 ```
 
-Monthly loan payment is affected by the borrower rate, higher borrower rate
-leads to higher monthly payemnt.
-This relationship is not affected by either the term or the original amount of
-a loan.
+The chart above shows how borrower rate affects the monthly payment, even if there is only a weak correlation between them (-0.24474235). It shows the importance of good visualisation that can reveal underlying relationships between different features.
 
-### Third Plot
+There is a positive, linear relationship between borrower rate and monthly payment. Loans that have higher borrower rate, also have a higher monthly payment. This relationship is not affected by either the term or the original amount of a loan. That means borrower rate also affects the monthly payment, together with the term and the original amount.
+
+### 6.3 Third Plot
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
   geom_boxplot(aes(fill = ListingCategory)) +
   ylim(0, 400) +
-  scale_color_discrete() +
+  scale_fill_manual(values = custom_colors) +
   guides(fill = FALSE) +
   rotate_x +
   ggtitle('Monthly Loan Payment by Listing Category') +
@@ -754,40 +1087,12 @@ ggplot(aes(ListingCategory, MonthlyLoanPayment), data = loans) +
   ylab('Monthly Loan Payment')
 ```
 
-Monthly loan payment vary differently across listing categories.
-Some categories has more wide monthly payment range (e.g., `Debt
-Consolidation`), others has less wide payment range (e.g., `Motorcycle`).
+I have choosen this chart because it shows how the range of monthly loan payment varies between different listing categories. It shows that the purpose of a loan is also important, just like the amount and the term of it.
 
-## Reflection
+Monthly loan payment vary differently across listing categories. Some categories has more wide monthly payment range (e.g., `Debt Consolidation`), others has less wide payment range (e.g., `Motorcycle`).
 
-The prosper loan dataset contains 113937 observations of 83 variables from
-2006 to 2014. At the beginning of my investigation I was trying to understand
-the meaning of different variables, find issues with how they stored and how
-can I make the best use of them. As the dataset contains a lot of variables,
-it was challenging to decide where to start. Finally, I have chosen to start
-investigation the variables that best representing a loan: original amount,
-term and monthly payment, and everything else that can have a relationship
-with them. First I started to plot each variable one by one to have an
-initial view about what the dataset contains, and how good the quality of it.
-I was very surprised when I saw that there were loans with 0 monthly payment,
-but later I realised that those loans are not current anymore. It was also
-unexpected that there were no loans in the dataset between late 2008 and late
-2009 but after some research I understood that the reason for the gap is the
-[subprime mortgage crisis][cnn_subprime_mortgage_crisis]. Later, during the
-analysis of the relationships between the different variables I realized that
-the monthly payment is the most important property of a loan, instead of the
-original amount as I thought before. I found that the term and the original
-amount of a loan the most relevant parameters to calculate the monthly
-payment. Borrower rate has an important role as well, however it was quite
-hard to visualize that relationship. I also found that there is a difference
-in the monthly payment, and the variation of the monthly payment across
-listing categories. Analyzing the changes of the variables over the time
-shown me that there were a few changes in the way how was the data collected.
-That made it hard to use some categorical variables, like employment status.
-The standardization of the mentioned categorical variables would lead to an
-investigation that could make a better use of them. Investigating the dataset
-without the loans that are for debt consolidation could give a good picture
-of the choices of the borrowers. Investigating the loans that are paid by
-debt consolidation would be useful as well.
+## 7 Reflection
 
-[cnn_subprime_mortgage_crisis]: http://money.cnn.com/2008/09/15/news/economy/subprime_timeline/index.htm
+The prosper loan dataset contains 113937 observations of 83 variables from 2006 to 2014. At the beginning of my investigation I was trying to understand the meaning of different variables, find issues with how they stored and how can I make the best use of them. As the dataset contains a lot of variables, it was challenging to decide where to start. Finally, I have chosen to start investigation the variables that best representing a loan: original amount, term and monthly payment, and everything else that can have a relationship with them. First I started to plot each variable one by one to have an initial view about what the dataset contains, and how good the quality of it. I was very surprised when I saw that there were loans with 0 monthly payment, but later I realised that those loans are not current anymore. It was also unexpected that there were no loans in the dataset between late 2008 and late 2009 but after some research I understood that the reason for the gap is the [subprime mortgage crisis][cnn_subprime_mortgage_crisis]. Later, during the analysis of the relationships between the different variables I realized that the monthly payment is the most important property of a loan, instead of the original amount as I thought before. I found that the term and the original amount of a loan the most relevant parameters to calculate the monthly payment. Borrower rate has an important role as well, however it was quite hard to visualize that relationship. I also found that there is a difference in the monthly payment, and the variation of the monthly payment across listing categories. Analyzing the changes of the variables over the time shown me that there were a few changes in the way how was the data collected. That made it hard to use some categorical variables, like employment status. The standardization of the mentioned categorical variables would lead to an investigation that could make a better use of them. To get a better picture about the borrowers and their choices, I would analyse the dataset without the loans that are for debt consolidation. Investigating the loans that are paid by debt consolidation would be useful as well. To improve this analysis, I would look deeper into the reason of the 0 stated monthly income values. I would also investigate the unexpectedly frequent values of borrower rate and borrower APR  (0.32, 0.35), and I also would be interested in building a linear model to predict the monthly payment and the original amount.
+
+[cnn_subprime_mortgage_crisis]: http://money.cnn.com/2008/09/15/news/economy/subprime_timeline/index.html
